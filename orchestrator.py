@@ -17,16 +17,43 @@ class FurinaOrchestrator:
 
     def _synthesize_clean(self, text: str, speed: float = 1.0) -> bool:
         """
-        Cleans the response by removing physical action notations in asterisks
-        and hardcodes Kokoro synthesis to explicitly use the 'af_bella' voice profile.
+        Cleans the response by removing physical action notations in asterisks,
+        removing all URLs, and stripping parenthetical/bracketed snippets
+        to ensure smooth and natural vocal streaming. Hardcodes Kokoro
+        synthesis to explicitly use the 'af_bella' voice profile.
         """
-        # Strip all physical action notations (text within asterisks) before compilation
+        # 1. Strip all physical action notations (text within asterisks)
         clean_text = re.sub(r"\*.*?\*", "", text, flags=re.DOTALL)
-        clean_text = re.sub(r"\s+", " ", clean_text).strip()
-        if not clean_text:
-            clean_text = text  # fallback if everything was stripped
         
-        self.guardrails.log_event("TTS_ENGINE", "SYNTHESIS_START", "Synthesizing vocal response using voice: af_bella")
+        # 2. Strip parenthetical and bracketed content (e.g. (Introducing...) or [details])
+        clean_text = re.sub(r"\(.*?\)", "", clean_text, flags=re.DOTALL)
+        clean_text = re.sub(r"\[.*?\]", "", clean_text, flags=re.DOTALL)
+        
+        # 3. Strip all URLs (including http, https, www, and common domain extensions with paths)
+        url_pattern = r"(https?://\S+|www\.\S+|\b[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}(?:/[^\s'\"()]*)*)"
+        clean_text = re.sub(url_pattern, "", clean_text)
+        
+        # 4. Clean up quotes, slashes, and punctuation leftovers
+        clean_text = re.sub(r"['\"`]+", "", clean_text)  # remove leftover quotes
+        clean_text = re.sub(r"\s*/+\s*", " ", clean_text) # replace leftover slashes with spaces
+        clean_text = re.sub(r"\s*;\s*", " ", clean_text) # replace semicolons with spaces
+        clean_text = re.sub(r"\s*:\s*", " ", clean_text) # replace colons with spaces
+        
+        # 5. Clean up duplicate spaces and trim punctuation
+        clean_text = re.sub(r"\s+", " ", clean_text).strip()
+        
+        # 6. Normalize punctuation spacing and duplicate punctuation
+        clean_text = re.sub(r"\s*([.,?!])", r"\1", clean_text)
+        clean_text = re.sub(r"([.,?!])\1+", r"\1", clean_text)
+        
+        # Strip trailing punctuation and make sure it ends with a single clean period if needed
+        clean_text = clean_text.strip().strip(",.?! ")
+        if clean_text:
+            clean_text += "."
+        else:
+            clean_text = "I have fetched the information for you."  # fallback
+
+        self.guardrails.log_event("TTS_ENGINE", "SYNTHESIS_START", f"Synthesizing clean vocal response: '{clean_text}' using voice: af_bella")
         # Hardcode the voice profile argument explicitly to 'af_bella'
         return self.tts.synthesize(clean_text, self.audio_output_path, voice="af_bella", speed=speed)
 
