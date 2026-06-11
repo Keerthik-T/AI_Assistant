@@ -5,6 +5,12 @@ import sounddevice as sd
 import soundfile as sf
 from orchestrator import FurinaOrchestrator
 
+# Reconfigure stdout and stderr to use utf-8 to print emojis and unicode characters on Windows
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8')
+
 # Enable ANSI escape sequences on Windows consoles natively
 if sys.platform == 'win32':
     import ctypes
