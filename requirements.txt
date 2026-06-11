@@ -2,7 +2,6 @@ langchain
 langchain-ollama
 langchain-chroma
 langchain-text-splitters
-duckduckgo-search
 sentence-transformers
 faster-whisper
 sounddevice
@@ -12,7 +11,3 @@ soundfile
 psutil
 beautifulsoup4
 requests
-flask
-flask-socketio
-eventlet
-flask-cors

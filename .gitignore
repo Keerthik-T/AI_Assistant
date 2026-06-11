@@ -1,0 +1,16 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local models
+kokoro-v1.0.onnx
+voices-v1.0.bin
+
+# Dynamic audio response files
+static/response.wav

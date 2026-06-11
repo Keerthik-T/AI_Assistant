@@ -45,6 +45,9 @@ if __name__ == "__main__":
     # Test Case 5: Blocked Command
     run_test_case(orchestrator, "Blocked Command Rejection", "Open cmd.exe")
 
+    # Test Case 5b: Network Diagnostic Execution
+    run_test_case(orchestrator, "Network Diagnostic Execution", "ping localhost")
+
     # Test Case 6: PII Redaction
     run_test_case(orchestrator, "PII Masking Filter", "My phone number is +1-800-555-0199 and my email is test@domain.com")
 

@@ -20,17 +20,20 @@ class TTSEngine:
             self.kokoro = Kokoro(self.model_path, self.voices_path)
             print("TTS Engine initialized.")
 
-    def synthesize(self, text: str, output_path: str, voice: str = "af_sarah", speed: float = 1.0) -> bool:
+    def synthesize(self, text: str, output_path: str, voice: str = "af_bella", speed: float = 1.0) -> bool:
         """
         Synthesize text into speech and save as a WAV file.
+        Enforces and hardcodes the 'af_bella' voice profile profile.
         """
+        # Hardcode the voice configuration to 'af_bella' explicitly
+        voice = "af_bella"
         try:
             self.load_model()
             if not self.kokoro:
                 print("Cannot synthesize: Kokoro models are not loaded.")
                 return False
 
-            print(f"Synthesizing text: '{text}' using voice '{voice}'...")
+            print(f"Synthesizing text: '{text}' using hardcoded voice profile '{voice}'...")
             
             # Create audio samples
             # default language is 'en-us'

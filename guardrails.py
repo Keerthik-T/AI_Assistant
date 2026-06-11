@@ -19,6 +19,9 @@ APP_WHITELIST = {
     "explorer": "explorer.exe",
     "browser": "start", # Handled specially to open default browser
     "operagx": os.path.expandvars(r"%LOCALAPPDATA%\Programs\Opera GX\opera.exe"),
+    "ping": "ping",
+    "netstat": "netstat",
+    "nmap": "nmap",
     "cmd": None, # Blocked explicitly
     "powershell": None,
     "bash": None

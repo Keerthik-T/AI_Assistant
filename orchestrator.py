@@ -1,4 +1,6 @@
+# orchestrator.py - UPDATED CLASS
 import os
+import re
 from guardrails import SecurityGuardrails
 from tools import AgentTools
 from llm_engine import LLMEngine
@@ -9,228 +11,158 @@ class FurinaOrchestrator:
         self.guardrails = SecurityGuardrails()
         self.tools = AgentTools()
         self.llm = LLMEngine()
-        # TTS Engine - lazy loads model
         self.tts = TTSEngine()
         self.audio_output_path = os.path.join("static", "response.wav")
-        self.is_sleeping = True
+        self.is_sleeping = False  # FIXED: Awake by default for smoother local testing
+
+    def _synthesize_clean(self, text: str, speed: float = 1.0) -> bool:
+        """
+        Cleans the response by removing physical action notations in asterisks
+        and hardcodes Kokoro synthesis to explicitly use the 'af_bella' voice profile.
+        """
+        # Strip all physical action notations (text within asterisks) before compilation
+        clean_text = re.sub(r"\*.*?\*", "", text, flags=re.DOTALL)
+        clean_text = re.sub(r"\s+", " ", clean_text).strip()
+        if not clean_text:
+            clean_text = text  # fallback if everything was stripped
+        
+        self.guardrails.log_event("TTS_ENGINE", "SYNTHESIS_START", "Synthesizing vocal response using voice: af_bella")
+        # Hardcode the voice profile argument explicitly to 'af_bella'
+        return self.tts.synthesize(clean_text, self.audio_output_path, voice="af_bella", speed=speed)
 
     def route_and_execute(self, prompt: str) -> dict:
-        """
-        Executes the deterministic routing pipeline:
-        Input -> Input Guardrails -> Intent Router -> Tool -> LLM Formatter -> Output Guardrail -> TTS.
-        """
-        import re
-
-        # Clear previous transaction logs
         self.guardrails.security_logs = []
-        
         self.guardrails.log_event("PIPELINE", "START", f"Processing user query: '{prompt}'")
+
+        # Fetch active personality metadata
+        from personalities import get_personality
+        personality = get_personality("furina")
 
         prompt_lower = prompt.lower().strip()
         wake_pattern = r"\b(hello[,\s]*(archon|arkon)?|hey[,\s]*(furina|farina|forina|verena|marina|arena)?|wake[,\s]*up)\b"
         wake_match = re.search(wake_pattern, prompt_lower)
 
-        # Check if sleeping
         if self.is_sleeping:
             if wake_match:
                 self.is_sleeping = False
                 self.guardrails.log_event("PIPELINE", "UPDATE", "Wake word detected. Furina has awakened!")
-                # Strip the wake word from the prompt
-                clean_prompt = re.sub(wake_pattern, "", prompt, flags=re.IGNORECASE).strip()
-                # Clean up any leading punctuation/spaces
-                clean_prompt = re.sub(r"^[,\s:\-\?!]+", "", clean_prompt).strip()
-                if not clean_prompt:
-                    clean_prompt = "Hello"
-                prompt = clean_prompt
+                prompt = re.sub(wake_pattern, "", prompt, flags=re.IGNORECASE).strip()
+                prompt = re.sub(r"^[,\s:\-\?!]+", "", prompt).strip()
+                if not prompt: prompt = "Hello"
             else:
                 self.guardrails.log_event("PIPELINE", "BLOCKED", "Input ignored. Furina is currently sleeping.")
-                canned_response = (
-                    f"*mumbles sleepily, pulling her top hat over her eyes* Zzz... "
-                    f"The Opera Epiclese is closed for the night, my dear audience... "
-                    f"Address me as 'hey furina' or 'hello Archon' to wake me..."
-                )
-                self.tts.synthesize(canned_response, self.audio_output_path)
-                return {
-                    "route": "sleeping",
-                    "text": canned_response,
-                    "audio_path": "/" + self.audio_output_path.replace("\\", "/"),
-                    "logs": self.guardrails.security_logs,
-                    "risk_score": 0
-                }
+                canned_response = "*mumbles sleepily* Zzz... Address me as 'hey furina' to wake me..."
+                self._synthesize_clean(canned_response)
+                return {"route": "sleeping", "text": canned_response, "audio_path": "/" + self.audio_output_path.replace("\\", "/"), "logs": self.guardrails.security_logs, "risk_score": 0}
         else:
-            # Check for sleep command when awake
-            sleep_pattern = r"\b(go[,\s]*to[,\s]*sleep|sleep[,\s]*now|good[,\s]*night[,\s]*(furina|farina|forina|verena|marina|arena)?)\b"
-            sleep_match = re.search(sleep_pattern, prompt_lower)
-            if sleep_match:
+            sleep_pattern = r"\b(go[,\s]*to[,\s]*sleep|sleep[,\s]*now|good[,\s]*night)\b"
+            if re.search(sleep_pattern, prompt_lower):
                 self.is_sleeping = True
-                self.guardrails.log_event("PIPELINE", "UPDATE", "Sleep command received. Furina has gone to sleep.")
-                canned_response = (
-                    f"*yawns elegantly and stretches* The curtains must fall, and the spotlight dims. "
-                    f"Good night, my dear audience! I shall retire to my chambers now... Zzz..."
-                )
-                self.tts.synthesize(canned_response, self.audio_output_path)
-                return {
-                    "route": "sleeping",
-                    "text": canned_response,
-                    "audio_path": "/" + self.audio_output_path.replace("\\", "/"),
-                    "logs": self.guardrails.security_logs,
-                    "risk_score": 0
-                }
+                canned_response = "*yawns elegantly* Good night, my dear audience! I shall retire... Zzz..."
+                self._synthesize_clean(canned_response)
+                return {"route": "sleeping", "text": canned_response, "audio_path": "/" + self.audio_output_path.replace("\\", "/"), "logs": self.guardrails.security_logs, "risk_score": 0}
 
-        # 1. Run Input Guardrails (PII, Prompt Injection, Topic Filters)
+        # 1. Run Input Guardrails
         input_result = self.guardrails.process_input(prompt)
         processed_prompt = input_result["processed_text"]
         risk_score = input_result["risk_score"]
         
-        # If blocked by input guardrails, bypass routing and return dramatic canned response
         if input_result["is_blocked"]:
-            block_reason = input_result["block_reason"]
-            self.guardrails.log_event("PIPELINE", "HALTED", f"Blocked due to: {block_reason}")
-            
-            canned_response = (
-                f"*gasps dramatically* Hold it right there! A security threat? "
-                f"Did you truly think you could deceive the great Furina with such a trick? "
-                f"This request has been denied! (*huffs and strikes a defensive pose*)"
-            )
-            
-            # Synthesize dramatic response
-            self.tts.synthesize(canned_response, self.audio_output_path)
-            
-            return {
-                "route": "blocked",
-                "text": canned_response,
-                "audio_path": "/" + self.audio_output_path.replace("\\", "/"),
-                "logs": self.guardrails.security_logs,
-                "risk_score": risk_score
-            }
+            canned_response = "*gasps dramatically* Access denied! You cannot bypass my grand tribunal!"
+            self._synthesize_clean(canned_response)
+            return {"route": "blocked", "text": canned_response, "audio_path": "/" + self.audio_output_path.replace("\\", "/"), "logs": self.guardrails.security_logs, "risk_score": risk_score}
 
-        # 2. Intent Routing (Deterministic Keyword check)
+        # 2. Intent Routing
         prompt_lower = processed_prompt.lower()
         route = "chat"
         tool_output = ""
 
-        # Check for system metrics commands
-        if any(kw in prompt_lower for kw in ["system metrics", "system stats", "pc performance", "hardware"]):
-            route = "pc_metrics"
-            self.guardrails.log_event("INTENT_ROUTER", "ROUTE_MATCH", "Matched Intent: System Hardware Metrics")
-            tool_output = self.tools.get_system_metrics()
-
-        # Check for application launch commands
-        elif any(kw in prompt_lower for kw in ["open", "launch", "start"]):
-            # Simple keyword parsing for whitelisted apps
-            app_to_launch = None
+        # Pre-compute command execution matching (for GUI apps and network tools)
+        is_cmd = False
+        app_to_launch = None
+        args = None
+        
+        # Check whitelisted GUI apps
+        if any(kw in prompt_lower for kw in ["open", "launch", "start", "run"]):
             for app_key in ["notepad", "calculator", "calc", "taskmgr", "explorer", "operagx"]:
                 if app_key in prompt_lower:
                     app_to_launch = app_key
+                    is_cmd = True
                     break
-            
-            if "browser" in prompt_lower or "web browser" in prompt_lower:
+            if not is_cmd and "browser" in prompt_lower:
                 app_to_launch = "browser"
+                is_cmd = True
 
-            if app_to_launch:
-                route = "pc_control"
-                self.guardrails.log_event("INTENT_ROUTER", "ROUTE_MATCH", f"Matched Intent: Launch PC App ({app_to_launch})")
-                
-                # Check command execution guardrails and extract arguments
-                args = None
-                if app_to_launch == "browser" or app_to_launch == "operagx":
-                    # Default URL
-                    url = "https://youtube.com" if app_to_launch == "operagx" else "https://google.com"
-                    # Try to extract URL from prompt
-                    url_match = re.search(r"(https?://\S+|www\.\S+|\S+\.(?:com|org|net|edu|gov|mil|int)\S*)", prompt_lower)
-                    if url_match:
-                        found_url = url_match.group(1)
-                        if not found_url.startswith("http"):
-                            found_url = "https://" + found_url
-                        url = found_url
-                    args = [url]
-
-                cmd_validation = self.guardrails.process_command(app_to_launch, args)
-                
-                if cmd_validation["is_allowed"]:
-                    tool_output = self.tools.execute_pc_command(cmd_validation["executable"], cmd_validation.get("args"))
-                else:
-                    tool_output = f"Command execution blocked: {cmd_validation['reason']}"
-            else:
-                self.guardrails.log_event("INTENT_ROUTER", "ROUTE_MATCH", "Launch keyword found, but no whitelisted app specified. Routing to chat.")
-                route = "chat"
-
-
-        # Check for web search commands
-        elif any(kw in prompt_lower for kw in ["search web for", "search for", "duckduckgo"]):
-            # Extract query
-            query = prompt
-            for kw in ["search web for", "search for", "duckduckgo"]:
-                if kw in prompt_lower:
-                    idx = prompt_lower.find(kw) + len(kw)
-                    query = prompt[idx:].strip()
+        # Check diagnostic/networking tools
+        if not is_cmd:
+            for tool in ["ping", "netstat", "nmap"]:
+                if re.search(r'\b' + re.escape(tool) + r'\b', prompt_lower):
+                    app_to_launch = tool
+                    is_cmd = True
                     break
+
+        if any(kw in prompt_lower for kw in ["system metrics", "system stats", "pc performance", "hardware"]):
+            route = "pc_metrics"
+            tool_output = self.tools.get_system_metrics()
+
+        elif is_cmd:
+            route = "pc_control"
+            # Extract arguments
+            if app_to_launch in ["browser", "operagx"]:
+                url = "https://google.com"
+                url_match = re.search(r"(https?://\S+|www\.\S+|\S+\.(?:com|org|net)\S*)", prompt_lower)
+                if url_match:
+                    url = url_match.group(1)
+                    if not url.startswith("http"): url = "https://" + url
+                args = [url]
+            elif app_to_launch in ["ping", "netstat", "nmap"]:
+                match = re.search(r'\b' + re.escape(app_to_launch) + r'\b', prompt_lower)
+                if match:
+                    args_str = processed_prompt[match.end():].strip()
+                    args = [a for a in args_str.split() if a] if args_str else None
+
+            cmd_validation = self.guardrails.process_command(app_to_launch, args)
+            if cmd_validation["is_allowed"]:
+                tool_output = self.tools.execute_pc_command(cmd_validation["executable"], cmd_validation.get("args"))
+            else:
+                tool_output = f"Command execution blocked: {cmd_validation['reason']}"
+
+        elif any(kw in prompt_lower for kw in ["search web for", "search for", "duckduckgo", "news on", "news about", "what is", "who is", "research"]):
+            query = processed_prompt
+            fillers = ["search web for", "search for", "duckduckgo", "bring me the news on", "bring me news about", "what is the news on", "news on", "news about", "who is", "what is", "research"]
+            
+            for kw in fillers:
+                match = re.search(r'\b' + re.escape(kw) + r'\b', query, re.IGNORECASE)
+                if match:
+                    parts = re.split(re.escape(match.group(0)), query, maxsplit=1, flags=re.IGNORECASE)
+                    if len(parts) > 1:
+                        query = parts[1]
+                        break
+            
+            query = query.strip().strip(",.?!:;- ")
+            if not query: 
+                query = processed_prompt.strip()
             
             route = "web_search"
             self.guardrails.log_event("INTENT_ROUTER", "ROUTE_MATCH", f"Matched Intent: Web Search for '{query}'")
             tool_output = self.tools.web_search(query)
 
-        # 3. Format Response using LLM Persona
-        self.guardrails.log_event("LLM_ENGINE", "INFERENCE_START", f"Formatting output using Furina persona for route: {route}")
-        
-        # Build contextual prompt for the LLM to wrap tool execution output
+        # 3. Format Response via LLM
         if route == "pc_metrics":
-            llm_prompt = (
-                f"System command output: {tool_output}. "
-                f"Please present these system performance metrics to the user. "
-                f"Describe them dramatically, comparing the CPU or RAM to the inner mechanics of the Oratrice Mecanique!"
-            )
+            llm_prompt = f"System command output: {tool_output}. Present these metrics dramatically like the Oratrice mechanics!"
         elif route == "pc_control":
-            if "blocked" in tool_output:
-                llm_prompt = (
-                    f"System command output: {tool_output}. "
-                    f"Inform the user in character that their request to open an app was blocked by security guardrails. "
-                    f"Be dramatic, saying that the 'legal guards' of Fontaine have intercepted the request."
-                )
-            else:
-                llm_prompt = (
-                    f"System command output: {tool_output}. "
-                    f"Inform the user in character that you have successfully opened the application for them. "
-                    f"Act proud and majestic, as if you summoned it by magic!"
-                )
+            llm_prompt = f"System command output: {tool_output}. Confirm application execution proudly as if by magic!"
         elif route == "web_search":
-            llm_prompt = (
-                f"Web search results: {tool_output}. "
-                f"Please synthesize this search information and explain it to the user. "
-                f"Maintain your dramatic Furina persona and pretend you found it in Fontaine's great library."
-            )
+            llm_prompt = f"Web search results: {tool_output}. Please synthesize this search information theatrically. Question: {processed_prompt}"
         else:
-            # Standard chat route
             llm_prompt = processed_prompt
 
-        # Run LLM
         raw_response = self.llm.query(llm_prompt)
-        
-        # 4. Run Output Guardrails
         output_result = self.guardrails.process_output(raw_response)
         final_response = output_result["processed_response"]
 
-        # 5. Run TTS Synthesis
-        self.guardrails.log_event("TTS_ENGINE", "SYNTHESIS_START", "Synthesizing vocal response...")
-        # Strip asterisks (physical action text) from vocal output so it sounds natural
-        tts_text = re.sub(r"\*.*?\*", "", final_response).strip()
-        if not tts_text:
-            tts_text = final_response # Fallback
-            
-        success = self.tts.synthesize(tts_text, self.audio_output_path)
-        if success:
-            self.guardrails.log_event("TTS_ENGINE", "SYNTHESIS_COMPLETE", "Speech saved to static/response.wav")
-        else:
-            self.guardrails.log_event("TTS_ENGINE", "SYNTHESIS_FAILED", "Failed to generate vocal response.")
-
-        self.guardrails.log_event("PIPELINE", "COMPLETE", "Transaction finished successfully.")
-
-        return {
-            "route": route,
-            "text": final_response,
-            "audio_path": "/" + self.audio_output_path.replace("\\", "/"),
-            "logs": self.guardrails.security_logs,
-            "risk_score": risk_score
-        }
-
-import re
+        # 4. Run TTS Synthesis
+        success = self._synthesize_clean(final_response, speed=1.05)
+        
+        self.guardrails.log_event("PIPELINE", "COMPLETE", "Transaction completed successfully.")
+        return {"route": route, "text": final_response, "audio_path": "/" + self.audio_output_path.replace("\\", "/"), "logs": self.guardrails.security_logs, "risk_score": risk_score}
