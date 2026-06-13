@@ -33,7 +33,6 @@ class LLMEngine:
             self.llm = ChatOllama(
                 model=self.model_name,
                 temperature=0.7,
-                num_predict=150, # Keep responses short for fast CPU rendering & TTS
             )
             print(f"Connected to Ollama model '{model_name}'.")
         except Exception as e:
@@ -98,11 +97,16 @@ class LLMEngine:
                 f"A truly marvelous performance, operating in perfect harmony with my star power!"
             )
 
-        elif "Web search results:" in prompt or "search information" in prompt_lower:
+        elif "Web search results:" in prompt or "search information" in prompt_lower or "[live search data]" in prompt_lower:
             results = ""
             if "Web search results:" in prompt:
                 start_idx = prompt.find("Web search results:") + len("Web search results:")
                 end_idx = prompt.find("Please synthesize")
+                if end_idx != -1:
+                    results = prompt[start_idx:end_idx].strip()
+            elif "[LIVE SEARCH DATA]" in prompt:
+                start_idx = prompt.find("[LIVE SEARCH DATA]") + len("[LIVE SEARCH DATA]")
+                end_idx = prompt.find("[USER QUESTION]")
                 if end_idx != -1:
                     results = prompt[start_idx:end_idx].strip()
             

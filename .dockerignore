@@ -1,0 +1,7 @@
+.venv
+venv
+__pycache__
+*.pyc
+static/response.wav
+kokoro-v1.0.onnx
+voices-v1.0.bin

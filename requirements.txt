@@ -11,3 +11,5 @@ soundfile
 psutil
 beautifulsoup4
 requests
+SpeechRecognition
+pyaudio
