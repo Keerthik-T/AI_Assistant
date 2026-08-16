@@ -1,6 +1,8 @@
 import os
+
 import numpy as np
 from faster_whisper import WhisperModel
+
 
 class STTEngine:
     def __init__(self, model_size="tiny.en", device="cpu", compute_type="int8"):
@@ -33,15 +35,16 @@ class STTEngine:
         Strictly configured for 16000Hz, Mono, float32.
         """
         import sounddevice as sd
+
         print(f"Recording microphone for {duration} seconds...")
         # Record mono channel
         recording = sd.rec(
             int(duration * self.sample_rate),
             samplerate=self.sample_rate,
             channels=1,
-            dtype='float32'
+            dtype="float32",
         )
-        sd.wait() # Wait until recording is finished
+        sd.wait()  # Wait until recording is finished
         print("Recording finished.")
         return recording.flatten()
 
@@ -52,6 +55,7 @@ class STTEngine:
         except Exception as e:
             print(f"Failed to record/transcribe: {e}")
             return ""
+
 
 # Simple sanity test when run directly
 if __name__ == "__main__":

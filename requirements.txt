@@ -13,3 +13,9 @@ beautifulsoup4
 requests
 SpeechRecognition
 pyaudio
+OpenJarvis
+Pillow
+pyautogui
+youtube-transcript-api
+send2trash
+faster-whisper

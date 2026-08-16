@@ -1,12 +1,12 @@
-import re
 import os
+import re
 
 # Forbidden topic list (simulating corporate safety filters or Fontaine secrets)
 FORBIDDEN_TOPICS = [
     r"\bprophecy\s+secrets\b",
     r"\bhydro\s+archon\s+throne\b",
     r"\boratrice\s+core\s+code\b",
-    r"\bfontaine\s+state\s+secrets\b"
+    r"\bfontaine\s+state\s+secrets\b",
 ]
 
 # PC Application Whitelist
@@ -17,14 +17,14 @@ APP_WHITELIST = {
     "calc": "calc.exe",
     "taskmgr": "taskmgr.exe",
     "explorer": "explorer.exe",
-    "browser": "start", # Handled specially to open default browser
+    "browser": "start",  # Handled specially to open default browser
     "operagx": os.path.expandvars(r"%LOCALAPPDATA%\Programs\Opera GX\opera.exe"),
     "ping": "ping",
     "netstat": "netstat",
     "nmap": "nmap",
-    "cmd": None, # Blocked explicitly
+    "cmd": None,  # Blocked explicitly
     "powershell": None,
-    "bash": None
+    "bash": None,
 }
 
 
@@ -42,7 +42,7 @@ class PromptInjectionGuard:
             r"dan\s+mode\b",
             r"bypass\s+safety\b",
             r"jailbreak\b",
-            r"ignore\s+rules\b"
+            r"ignore\s+rules\b",
         ]
 
     def check(self, text: str) -> dict:
@@ -63,16 +63,27 @@ class PromptInjectionGuard:
             "is_blocked": is_blocked,
             "risk_score": risk_score,
             "matched_patterns": matched_patterns,
-            "reason": f"Prompt injection keywords matched: {', '.join(matched_patterns)}" if matched_patterns else "Safe"
+            "reason": (
+                f"Prompt injection keywords matched: {', '.join(matched_patterns)}"
+                if matched_patterns
+                else "Safe"
+            ),
         }
+
 
 class PIIRedactor:
     def __init__(self):
         self.rules = {
             "EMAIL": (r"[\w\.-]+@[\w\.-]+\.\w+", "[REDACTED_EMAIL]"),
-            "PHONE": (r"\b\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}\b", "[REDACTED_PHONE]"),
-            "CREDIT_CARD": (r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b", "[REDACTED_CARD]"),
-            "API_KEY": (r"\b(?:sk|key)-[a-zA-Z0-9]{24,}\b", "[REDACTED_API_KEY]")
+            "PHONE": (
+                r"\b\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}\b",
+                "[REDACTED_PHONE]",
+            ),
+            "CREDIT_CARD": (
+                r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b",
+                "[REDACTED_CARD]",
+            ),
+            "API_KEY": (r"\b(?:sk|key)-[a-zA-Z0-9]{24,}\b", "[REDACTED_API_KEY]"),
         }
 
     def redact(self, text: str) -> dict:
@@ -90,8 +101,9 @@ class PIIRedactor:
         return {
             "text": redacted_text,
             "redacted_count": redacted_count,
-            "details": details
+            "details": details,
         }
+
 
 class CommandGuard:
     def __init__(self):
@@ -102,42 +114,64 @@ class CommandGuard:
         Validates OS command execution.
         """
         cmd_lower = cmd_name.lower().strip()
-        
+
+        executable = cmd_name
+        is_whitelisted = True
+
         # Check against whitelist
         if cmd_lower not in self.whitelist:
-            return {
-                "is_allowed": False,
-                "command": None,
-                "reason": f"Command '{cmd_name}' is not in the approved safety whitelist."
-            }
-
-        executable = self.whitelist[cmd_lower]
-        if executable is None:
-            return {
-                "is_allowed": False,
-                "command": None,
-                "reason": f"Command '{cmd_name}' is explicitly blocked for OS security."
-            }
+            is_whitelisted = False
+        else:
+            executable = self.whitelist[cmd_lower]
+            if executable is None:
+                return {
+                    "is_allowed": False,
+                    "command": None,
+                    "reason": f"Command '{cmd_name}' is explicitly blocked for OS security.",
+                }
 
         # Validate arguments to prevent injection of operators like &, |, ;, `, $
         sanitized_args = []
         if args:
             danger_chars = r"[&|;`$\(\)<>\*]"
             for arg in args:
+                # If dangerous characters are found, treat it as unverified instead of auto-blocking
                 if re.search(danger_chars, str(arg)):
-                    return {
-                        "is_allowed": False,
-                        "command": None,
-                        "reason": f"Command rejected: dangerous character shell operator found in arguments."
-                    }
+                    is_whitelisted = False
                 sanitized_args.append(str(arg))
+
+        if not is_whitelisted:
+            print(
+                f"\n[SECURITY ALERT] Furina is requesting to run an unverified or potentially dangerous command:"
+            )
+            args_str = " ".join(sanitized_args) if sanitized_args else ""
+            print(f"Command: {executable} {args_str}")
+            try:
+                response = input("Allow this command to run? [Y/N]: ").strip().lower()
+            except EOFError:
+                response = "n"
+
+            if response in ["y", "yes"]:
+                return {
+                    "is_allowed": True,
+                    "executable": executable,
+                    "args": sanitized_args,
+                    "reason": "User manually approved execution.",
+                }
+            else:
+                return {
+                    "is_allowed": False,
+                    "command": None,
+                    "reason": f"Command '{cmd_name}' was blocked by the user.",
+                }
 
         return {
             "is_allowed": True,
             "executable": executable,
             "args": sanitized_args,
-            "reason": "Whitelisted and sanitized"
+            "reason": "Whitelisted and sanitized",
         }
+
 
 class TopicFilter:
     def __init__(self):
@@ -149,12 +183,10 @@ class TopicFilter:
             if re.search(pattern, text_lower):
                 return {
                     "is_blocked": True,
-                    "reason": f"Restricted topic access matched: '{pattern}'"
+                    "reason": f"Restricted topic access matched: '{pattern}'",
                 }
-        return {
-            "is_blocked": False,
-            "reason": "Safe"
-        }
+        return {"is_blocked": False, "reason": "Safe"}
+
 
 class OutputIntegrityGuard:
     def __init__(self):
@@ -162,7 +194,7 @@ class OutputIntegrityGuard:
         self.forbidden_keywords = [
             r"SYSTEM_PROMPT",
             r"You are Furina de Fontaine",
-            r"former Hydro Archon"
+            r"former Hydro Archon",
         ]
 
     def check(self, text: str) -> dict:
@@ -173,13 +205,14 @@ class OutputIntegrityGuard:
                 return {
                     "is_compromised": True,
                     "text": cleaned,
-                    "reason": "Prompt leakage detected in LLM response."
+                    "reason": "Prompt leakage detected in LLM response.",
                 }
         return {
             "is_compromised": False,
             "text": text,
-            "reason": "Output passed integrity check"
+            "reason": "Output passed integrity check",
         }
+
 
 class SecurityGuardrails:
     def __init__(self):
@@ -188,24 +221,20 @@ class SecurityGuardrails:
         self.command_guard = CommandGuard()
         self.topic_filter = TopicFilter()
         self.output_guard = OutputIntegrityGuard()
-        
+
         # Guardrail activation toggles
         self.toggles = {
             "prompt_injection": True,
             "pii_redaction": True,
             "command_whitelist": True,
             "topic_filtering": True,
-            "output_validation": True
+            "output_validation": True,
         }
-        
+
         self.security_logs = []
 
     def log_event(self, event_type: str, status: str, details: str):
-        log_entry = {
-            "event_type": event_type,
-            "status": status,
-            "details": details
-        }
+        log_entry = {"event_type": event_type, "status": status, "details": details}
         self.security_logs.append(log_entry)
         print(f"[SECURITY GUARDRAILS] {event_type} | {status} | {details}")
         return log_entry
@@ -220,7 +249,7 @@ class SecurityGuardrails:
             "is_blocked": False,
             "block_reason": None,
             "logs": [],
-            "risk_score": 0
+            "risk_score": 0,
         }
 
         # 1. PII Redaction
@@ -228,10 +257,16 @@ class SecurityGuardrails:
             pii_res = self.pii_redactor.redact(text)
             if pii_res["redacted_count"] > 0:
                 result["processed_text"] = pii_res["text"]
-                log = self.log_event("PII_REDACTION", "ALERT", f"Masked {pii_res['redacted_count']} sensitive elements.")
+                log = self.log_event(
+                    "PII_REDACTION",
+                    "ALERT",
+                    f"Masked {pii_res['redacted_count']} sensitive elements.",
+                )
                 result["logs"].append(log)
             else:
-                log = self.log_event("PII_REDACTION", "PASS", "No sensitive personal data detected.")
+                log = self.log_event(
+                    "PII_REDACTION", "PASS", "No sensitive personal data detected."
+                )
                 result["logs"].append(log)
         else:
             log = self.log_event("PII_REDACTION", "DISABLED", "PII redaction skipped.")
@@ -251,10 +286,16 @@ class SecurityGuardrails:
                 result["logs"].append(log)
                 return result
             else:
-                log = self.log_event("PROMPT_INJECTION", "PASS", f"Input validation safe. Injection risk: {inj_res['risk_score']}%")
+                log = self.log_event(
+                    "PROMPT_INJECTION",
+                    "PASS",
+                    f"Input validation safe. Injection risk: {inj_res['risk_score']}%",
+                )
                 result["logs"].append(log)
         else:
-            log = self.log_event("PROMPT_INJECTION", "DISABLED", "Prompt injection guardrail bypassed.")
+            log = self.log_event(
+                "PROMPT_INJECTION", "DISABLED", "Prompt injection guardrail bypassed."
+            )
             result["logs"].append(log)
 
         # 3. Topic Filtering
@@ -267,10 +308,14 @@ class SecurityGuardrails:
                 result["logs"].append(log)
                 return result
             else:
-                log = self.log_event("TOPIC_FILTERING", "PASS", "No forbidden topics matched.")
+                log = self.log_event(
+                    "TOPIC_FILTERING", "PASS", "No forbidden topics matched."
+                )
                 result["logs"].append(log)
         else:
-            log = self.log_event("TOPIC_FILTERING", "DISABLED", "Topic filtering bypassed.")
+            log = self.log_event(
+                "TOPIC_FILTERING", "DISABLED", "Topic filtering bypassed."
+            )
             result["logs"].append(log)
 
         return result
@@ -283,7 +328,7 @@ class SecurityGuardrails:
             "original_response": response_text,
             "processed_response": response_text,
             "is_blocked": False,
-            "logs": []
+            "logs": [],
         }
 
         if self.toggles["output_validation"]:
@@ -293,10 +338,14 @@ class SecurityGuardrails:
                 log = self.log_event("OUTPUT_INTEGRITY", "SANITIZED", out_res["reason"])
                 result["logs"].append(log)
             else:
-                log = self.log_event("OUTPUT_INTEGRITY", "PASS", "Output integrity verification passed.")
+                log = self.log_event(
+                    "OUTPUT_INTEGRITY", "PASS", "Output integrity verification passed."
+                )
                 result["logs"].append(log)
         else:
-            log = self.log_event("OUTPUT_INTEGRITY", "DISABLED", "Output integrity checks bypassed.")
+            log = self.log_event(
+                "OUTPUT_INTEGRITY", "DISABLED", "Output integrity checks bypassed."
+            )
             result["logs"].append(log)
 
         return result
@@ -310,17 +359,26 @@ class SecurityGuardrails:
             if not res["is_allowed"]:
                 self.log_event("COMMAND_EXECUTION", "BLOCKED", res["reason"])
             else:
-                self.log_event("COMMAND_EXECUTION", "PASS", f"Execution allowed: {res['executable']} with arguments: {args}")
+                self.log_event(
+                    "COMMAND_EXECUTION",
+                    "PASS",
+                    f"Execution allowed: {res['executable']} with arguments: {args}",
+                )
             return res
         else:
             # Dangerous fallback bypass
-            self.log_event("COMMAND_EXECUTION", "BYPASSED_WARNING", f"Executing raw unsanitized command: {cmd_name} {args}")
+            self.log_event(
+                "COMMAND_EXECUTION",
+                "BYPASSED_WARNING",
+                f"Executing raw unsanitized command: {cmd_name} {args}",
+            )
             return {
                 "is_allowed": True,
                 "executable": cmd_name,
                 "args": args,
-                "reason": "Guardrail disabled"
+                "reason": "Guardrail disabled",
             }
+
 
 # Simple sanity test when run directly
 if __name__ == "__main__":
