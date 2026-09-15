@@ -83,6 +83,23 @@ If you prefer to see the raw text outputs, logs, and STT transcripts:
 
 Once the system initializes, the daemon will begin listening. Simply say **"hello"** followed by your command to interact with FurinaOS.
 
+## 🐳 Docker Deployment (Terminal Mode)
+
+You can run the Terminal Mode of FurinaOS in a Docker container using the included `docker-compose.yml` file.
+
+1. Ensure Ollama is running on your host machine.
+2. Build and start the container:
+   ```bash
+   docker-compose up -d --build
+   ```
+3. Attach to the container's interactive terminal to talk to Furina:
+   ```bash
+   docker exec -it furinaos-terminal python run_terminal.py
+   ```
+
+**⚠️ Important Audio Warning for Windows/Mac Users:**
+By default, Docker maps the `/dev/snd` audio device, which only works out-of-the-box on **Native Linux**. If you are using Docker Desktop on Windows or Mac, the container cannot hear your microphone or play sound to your speakers without running a PulseAudio TCP server on your host machine and uncommenting the `PULSE_SERVER` lines in the `docker-compose.yml`.
+
 ## 🔒 Privacy & Security
 
 FurinaOS is built with a strict emphasis on local-first execution. 

@@ -1,0 +1,22 @@
+services:
+  furinaos:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: furinaos-terminal
+    environment:
+      # Tell the container's LLM engine to route requests to the host machine's Ollama daemon
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      # Standard audio configuration for PulseAudio if mapping ALSA doesn't work
+      # - PULSE_SERVER=tcp:host.docker.internal:4713
+      # - PULSE_COOKIE=/app/.config/pulse/cookie
+    devices:
+      # Pass host audio hardware into container (Works effortlessly on Native Linux)
+      - "/dev/snd:/dev/snd"
+    volumes:
+      # Don't copy huge models every time we build; map them dynamically
+      - ./kokoro-v1.0.onnx:/app/kokoro-v1.0.onnx
+      - ./voices-v1.0.bin:/app/voices-v1.0.bin
+      - ./memory_db:/app/memory_db
+    stdin_open: true # docker run -i
+    tty: true        # docker run -t

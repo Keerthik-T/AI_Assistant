@@ -1,23 +1,24 @@
 FROM python:3.10-slim
 
-WORKDIR /app
-
-# Install system dependencies required for pyaudio, sounddevice, and speech recognition
-RUN apt-get update && apt-get install -y \
+# Install system dependencies for audio, STT, TTS, and basic build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
     portaudio19-dev \
-    gcc \
+    python3-pyaudio \
+    alsa-utils \
     ffmpeg \
+    build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependencies first to leverage Docker cache
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Create working directory
+WORKDIR /app
 
-# Copy the rest of the application files
-COPY . .
+# Install Python dependencies
+COPY requirements-docker.txt .
+RUN pip install --no-cache-dir -r requirements-docker.txt
 
-# Note: Model downloading is kept out of the Dockerfile build process by default to keep the image lightweight.
-# You can run `python download_models.py` inside the container or download them locally first.
+# Copy application source
+COPY . /app
 
-# Start the terminal interface
+# Run the terminal mode of Furina
 CMD ["python", "run_terminal.py"]

@@ -1,7 +1,12 @@
-.venv
-venv
-__pycache__
-*.pyc
-static/response.wav
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+memory_db/
+static/
 kokoro-v1.0.onnx
 voices-v1.0.bin
+*.md
+.git/
