@@ -20,25 +20,51 @@ To run FurinaOS locally, you will need:
 
 ## 🛠️ Installation
 
-1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/Keerthik-T/AI_Assistant.git
-   cd AI_Assistant
-   ```
+### 1. Install System Dependencies
+Before setting up the Python environment, you need to install the core AI and audio engines:
 
-2. **Set up the Virtual Environment & Install Dependencies**
-   ```powershell
-   python -m venv .venv
-   .\.venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+* **Ollama (LLM Engine):**
+  1. Download and install [Ollama](https://ollama.com/download) for your operating system.
+  2. Open your terminal and download the default Furina model:
+     ```bash
+     ollama run gemma4:e2b
+     ```
+     *(This ensures the Ollama daemon is running and the model is ready in the background).*
+     
+* **FFmpeg (Audio Processing):**
+  * **Windows:** Download from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) or install via winget: `winget install ffmpeg`
+  * **Linux:** `sudo apt install ffmpeg`
+  * **Mac:** `brew install ffmpeg`
 
-3. **Download Kokoro TTS Models**
-   You must place the Kokoro model files in the root directory before running:
-   * [kokoro-v1.0.onnx](https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx)
-   * [voices-v1.0.bin](https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin)
+### 2. Clone the Repository
+```bash
+git clone https://github.com/Keerthik-T/AI_Assistant.git
+cd AI_Assistant
+```
 
-   *(Note: The `faster-whisper` STT model will download automatically on first run).*
+### 3. Set up the Python Environment
+We highly recommend using a virtual environment to prevent conflicts with system packages.
+```powershell
+# Create the virtual environment
+python -m venv .venv
+
+# Activate it (Windows)
+.\.venv\Scripts\activate
+
+# Activate it (Linux/Mac)
+# source .venv/bin/activate
+
+# Install all required Python packages
+pip install -r requirements.txt
+```
+*(Note: If you encounter PyAudio installation errors on Windows, you may need to install the Visual Studio C++ Build Tools).*
+
+### 4. Download Kokoro TTS Models
+The high-fidelity voice engine requires two specific files to be placed in the **root directory** of the project before running:
+* Download [kokoro-v1.0.onnx](https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx) (~300MB)
+* Download [voices-v1.0.bin](https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin) (~100MB)
+
+*(Note: The `faster-whisper` STT model will automatically download on its first run).*
 
 ## 🎙️ Usage
 
