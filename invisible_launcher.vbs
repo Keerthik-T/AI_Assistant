@@ -14,5 +14,5 @@
 
 Dim WShell
 Set WShell = CreateObject("WScript.Shell")
-WShell.Run """c:\Users\ADMIN\AI Assistant\start_furina.bat""", 0, False
+WShell.Run """c:\Users\ADMIN\AI Assistant\furinaos.bat""", 0, False
 Set WShell = Nothing

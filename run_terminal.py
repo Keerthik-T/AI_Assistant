@@ -116,7 +116,13 @@ def listen_for_wake_word(recognizer, microphone):
         with microphone as source:
             # We set timeout so we don't block forever and can handle interrupts
             audio = recognizer.listen(source, timeout=5.0, phrase_time_limit=4.0)
-            text = recognizer.recognize_faster_whisper(audio).lower()
+            text = recognizer.recognize_faster_whisper(
+                audio,
+                model="base.en",
+                init_options={"device": "cpu", "compute_type": "int8"},
+                vad_filter=True,
+                beam_size=1,
+            ).lower()
             print(f'{Colors.BLUE}[Speech Heard]: "{text}"{Colors.ENDC}')
             # Use split or word boundaries to prevent matching substrings
             words = text.split()

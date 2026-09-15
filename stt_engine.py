@@ -5,7 +5,7 @@ from faster_whisper import WhisperModel
 
 
 class STTEngine:
-    def __init__(self, model_size="tiny.en", device="cpu", compute_type="int8"):
+    def __init__(self, model_size="base.en", device="cpu", compute_type="int8"):
         print(f"Initializing STT Engine with model '{model_size}' on '{device}'...")
         # Under low resource (Ryzen 5 5600G CPU), using CPU with int8 quantization
         self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
@@ -15,7 +15,7 @@ class STTEngine:
         """
         Transcribe raw float32 mono 16kHz audio data.
         """
-        segments, info = self.model.transcribe(audio_data, beam_size=5)
+        segments, info = self.model.transcribe(audio_data, beam_size=1, vad_filter=True)
         text = "".join([segment.text for segment in segments]).strip()
         return text
 
@@ -25,7 +25,7 @@ class STTEngine:
         """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Audio file {file_path} not found.")
-        segments, info = self.model.transcribe(file_path, beam_size=5)
+        segments, info = self.model.transcribe(file_path, beam_size=1, vad_filter=True)
         text = "".join([segment.text for segment in segments]).strip()
         return text
 

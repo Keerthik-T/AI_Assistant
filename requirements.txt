@@ -19,3 +19,4 @@ pyautogui
 youtube-transcript-api
 send2trash
 faster-whisper
+PyQt5

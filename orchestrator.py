@@ -71,7 +71,7 @@ class FurinaOrchestrator:
             clean_text, self.audio_output_path, voice="af_bella", speed=speed
         )
 
-    def route_and_execute(self, prompt: str) -> dict:
+    def route_and_execute(self, prompt: str, on_speak_callback=None) -> dict:
         self.guardrails.security_logs = []
         self.guardrails.log_event(
             "PIPELINE", "START", f"Processing user query: '{prompt}'"
@@ -102,6 +102,8 @@ class FurinaOrchestrator:
                 canned_response = (
                     "*mumbles sleepily* Zzz... Address me as 'hey furina' to wake me..."
                 )
+                if on_speak_callback:
+                    on_speak_callback()
                 self._synthesize_clean(canned_response)
                 return {
                     "route": "sleeping",
@@ -117,6 +119,8 @@ class FurinaOrchestrator:
             if re.search(sleep_pattern, prompt_lower):
                 self.is_sleeping = True
                 canned_response = "*yawns elegantly* Good night, my dear audience! I shall retire... Zzz..."
+                if on_speak_callback:
+                    on_speak_callback()
                 self._synthesize_clean(canned_response)
                 return {
                     "route": "sleeping",
@@ -133,6 +137,8 @@ class FurinaOrchestrator:
 
         if input_result["is_blocked"]:
             canned_response = "*gasps dramatically* Access denied! You cannot bypass my grand tribunal!"
+            if on_speak_callback:
+                on_speak_callback()
             self._synthesize_clean(canned_response)
             return {
                 "route": "blocked",
@@ -353,6 +359,8 @@ User Query: {processed_prompt}
         print(f"\n\033[96m🎭 Lady Furina: {final_response}\033[0m\n")
 
         # 4. Run TTS Synthesis
+        if on_speak_callback:
+            on_speak_callback()
         success = self._synthesize_clean(final_response, speed=1.05)
 
         self.guardrails.log_event(
